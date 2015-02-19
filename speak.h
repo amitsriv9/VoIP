@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <math.h>
 #include <unistd.h>
 #include <alsa/asoundlib.h>
@@ -21,7 +22,8 @@
 
    socklen_t addrlen;
    int mysocket, remote_socket;
-   struct sockaddr_in server, client;
+   int myaudio_socket, remoteaudio_socket;
+   struct sockaddr_in control_server, call_server, control_client, call_client;
 
    snd_pcm_t 		*record=NULL, *playback=NULL;
    snd_pcm_uframes_t 	frame_count;
@@ -29,16 +31,20 @@
    unsigned int 	channels=1, sample_rate=8000; 
    unsigned int		resample=1, latency=500000;
 
+   int 			totalSoundBytesReceived, totalSoundBytesSent, totalControlBytesReceived ;
    char 		*soundbuffer=NULL, *playbuffer=NULL, *buffer=NULL;
 
    unsigned short chunk_time;
    unsigned short sample_rate;
    state_e currentState = INIT;
 
+
+   int userCommandFactory(char *command, state_e currentState);
    int setupSound(int sampleRate);
    int initCall();
    int logIn();
    int setParams(unsigned short rate,unsigned short sendTime );
+   int getParamsAck(unsigned short rate,unsigned short sendTime );
    int changeState(state_e newstate);
    int sendRequest();
    int acceptRequest();
@@ -46,8 +52,9 @@
    int stopRecording();
    int startRecording();
    int endCall();
+   int endCallAck();
    int busyWork(int pushTime);
-   int processRemote(char *buffer);
+   int processRemote(char *command);
 
 
 
