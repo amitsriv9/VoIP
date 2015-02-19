@@ -12,6 +12,9 @@
 #include <unistd.h>
 #include <alsa/asoundlib.h>
 #include <fcntl.h>
+#include<netinet/in.h>
+
+
 
    #define SUCCESS 0
    int _PLAYBACK = 0;
@@ -32,10 +35,14 @@
    unsigned int		resample=1, latency=500000;
 
    int 			totalSoundBytesReceived, totalSoundBytesSent, totalControlBytesReceived ;
-   char 		*soundbuffer=NULL, *playbuffer=NULL, *buffer=NULL;
+   char 		*soundbuffer=NULL, *playbuffer=NULL, buffer[256]="";
 
+   char 		name[64]="", remote_name[64]="";
+  
+   int			paramFlag=1;
+
+ 
    unsigned short chunk_time;
-   unsigned short sample_rate;
    state_e currentState = INIT;
 
 
@@ -44,10 +51,12 @@
    int initCall();
    int logIn();
    int setParams(unsigned short rate,unsigned short sendTime );
+   int parseParams(char* command );
    int getParamsAck(unsigned short rate,unsigned short sendTime );
    int changeState(state_e newstate);
    int sendRequest();
    int acceptRequest();
+   int declineRequest();
    int showMessage(int msgNo);
    int stopRecording();
    int startRecording();
@@ -55,6 +64,7 @@
    int endCallAck();
    int busyWork(int pushTime);
    int processRemote(char *command);
+   int readInput(char * inbuffer);
 
 
 

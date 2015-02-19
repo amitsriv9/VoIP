@@ -9,7 +9,9 @@
     *   STOP    
     *   LOGOUT
     */
-    if(commmand == NULL){
+    unsigned short rate, sendTime;
+
+    if(command == NULL){
         return -2;
     }
     if( !strncmp(command,"LOGIN",5)||
@@ -18,7 +20,7 @@
     				!strncmp(command,"MUTE",4)||
     					!strncmp(command,"UNMUTE",6)||
    	 		 			!strncmp(command,"STOP",4)||
-   			 				!strncmp(command,"LOGOUT",6)
+   			 				!strncmp(command,"LOGOUT",6)||
    			 					!strncmp(command,"ACCEPT",6)){
 
 	if(currentState==INIT){
@@ -29,7 +31,8 @@
  
 	else if(currentState==LOGIN){
 		if(!strncmp(command, "PARAMS", 6)){
-		     setParams();
+		     parseParams(command);
+		     setParams( rate, sendTime);
 		}
 			if(!strncmp(command, "LOGOUT", 6)){
 			      changeState();
@@ -40,6 +43,9 @@
 					if(!strncmp(command, "ACCEPT", 6)){
 				               acceptRequest();  
 					}
+						if(!strncmp(command, "ACCEPT", 6)){
+				               		declineRequest();  
+						}
 	}
 
 	else if(currentState==TALK){
@@ -161,12 +167,21 @@
 	changeState(temp);
 	return SUCCESS;
    }
+   int declineRequest(){
+	memset(buffer,0,sizeof(buffer));
+	sprintf(buffer,"DECLINE %s", name);
+	send(remote_socket, buffer, strlen(buffer),0);
+
+	state_e temp=TALK;
+	changeState(temp);
+	return SUCCESS;
+   }
    int showMessage(int msgNo){
 
 	switch(msgNo){
 	case 1:printf("Incoming Call from %s\n",remote_name);
 		break;
-	case 2:printf("Call closed by %s\n",remote_name);
+	case 2:printf("Call refused by %s\n",remote_name);
 		break;
 	case 3:printf("MUTE ON\n");
 		break;
@@ -315,10 +330,14 @@
 
    int processRemote(char *command){
     unsigned short rate, sendTime;
+    int receivedByte;
+
 
     if(command==NULL){
 	return -1;
     }	  
+
+    receivedByte = recv(remote_socket, command, sizeof(buffer), 0);
 
     if( !strncmp(command,"PARAM_ACK",9)||
     		!strncmp(command,"PARAMS",6)||
@@ -326,10 +345,15 @@
     				!strncmp(command,"STOP_ACK",8)||
     					!strncmp(command,"CALL",4)||
     						!strncmp(command,"CALL_ACK",8)||
-    							!strncmp(command,"UNKNOWN",7)){
+    							!strncmp(command,"DECLINE",7)){
 
 	if(!strncmp(command,"CALL",4)){
-		showMessage(1);	
+		showMessage(1);
+		readInput(buffer);
+		userCommandFactory(buffer, currentState);	
+	}
+	if(!strncmp(command,"DECLINE",7)){
+		showMessage(2);
 	}
 	else if (!strncmp(command,"PARAMS",6)){
 		parseParams(command, &rate, &sendTime);
@@ -342,3 +366,38 @@
 
     return SUCCESS;
    }
+   int readInput(char * inbuffer){
+     char in, *ptr=NULL;
+
+     if(inbuffer==NULL){
+	 return -1;
+     }
+
+     ptr = inbuffer;
+     while((in = getchar())!='\n'){
+	*ptr++ = in;
+     }
+     *ptr='\0';
+     return SUCCESS;
+   }
+   int parseParams(char *command){
+      int rate,time;
+      char *temp=NULL, buff[64]="";
+      temp = strtok(command, "|");
+      if(temp!=NULL){
+         strncpy(temp, remote_name, 64);
+      }
+      strtok(NULL, "|");
+      if(temp!=NULL){
+         strncpy(temp, buff, 16);
+	 rate = atoi(buff);	 
+      }
+      strtok(NULL, "|");
+      if(temp!=NULL){
+         strncpy(temp, buff, 16);
+	 time = atoi(buff);	 
+      }
+
+      return SUCCESS;
+   }
+
