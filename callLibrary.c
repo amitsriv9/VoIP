@@ -1,6 +1,25 @@
 #include "speak.h"
 
-   int userCommandFactory(char *command, state_e currentState){
+   int _PLAYBACK = 0;
+   int _RECORD = 0;
+   int _IS_MUTE = 0;
+
+   unsigned int channels=1, sample_rate=8000; 
+   unsigned int resample=1, latency=500000;
+   char *soundbuffer=NULL, *playbuffer=NULL; 
+   snd_pcm_t 	*record=NULL, *playback=NULL;
+   int 	paramFlag=1;
+   state_e currentState = INIT;
+
+   socklen_t addrlen;
+   int mysocket, remote_socket;
+   int myaudio_socket, remoteaudio_socket;
+   struct sockaddr_in control_server, call_server, control_client, call_client;
+   snd_pcm_t 		*record, *playback;
+   snd_pcm_uframes_t 	frame_count;
+   snd_pcm_uframes_t 	frames_written;
+
+   int userCommandFactory(char *command, state_e cState){
    /*   INIT  - default
     *   LOGIN   
     *   PARAMS  8000/16000  20 40 80 100 200 500 1000
@@ -11,6 +30,7 @@
     */
     unsigned short rate, sendTime;
 
+    state_e temp=INIT;
     if(command == NULL){
         return -2;
     }
@@ -23,32 +43,37 @@
    			 				!strncmp(command,"LOGOUT",6)||
    			 					!strncmp(command,"ACCEPT",6)){
 
-	if(currentState==INIT){
+	if(cState==INIT){
 		if(!strncmp(command, "LOGIN", 5)){
-		     logIn();
+		     if(logIn()==0)
+			return SUCCESS;
 		}
 	}
  
-	else if(currentState==LOGIN){
+	else if(cState==LOGIN){
 		if(!strncmp(command, "PARAMS", 6)){
 		     parseParams(command);
 		     setParams( rate, sendTime);
 		}
 			if(!strncmp(command, "LOGOUT", 6)){
-			      changeState();
+			      changeState(temp);
 			}
 				if(!strncmp(command, "TALK", 4)){
-				      sendRequest();  
+				      if(sendRequest()==ACCEPT){
+				         return SUCCESS;
+				      }  
 				}
 					if(!strncmp(command, "ACCEPT", 6)){
-				               acceptRequest();  
+				               if(acceptRequest()== ACCEPT){
+				         	  return SUCCESS;
+					       }  
 					}
 						if(!strncmp(command, "ACCEPT", 6)){
 				               		declineRequest();  
 						}
 	}
 
-	else if(currentState==TALK){
+	else if(cState==TALK){
 		if(!strncmp(command, "MUTE)", 4)){
 		    stopRecording(); 
 		}
@@ -92,7 +117,7 @@
 
 
     }
-   int initCall(){
+   int initSetup(){
 
    	mysocket = socket(AF_INET, SOCK_STREAM,0);
    	myaudio_socket = socket(AF_INET, SOCK_STREAM,0);
@@ -118,7 +143,7 @@
 	state_e temp=LOGIN;
 	changeState(temp);
 	remote_socket = accept(mysocket, (struct sockaddr*)&control_client, &addrlen);
-	remoteaudio__socket = accept(myaudio_socket, (struct sockaddr*)&call_client, &addrlen);
+	remoteaudio_socket = accept(myaudio_socket, (struct sockaddr*)&call_client, &addrlen);
 	return SUCCESS;
    }
    int setParams(unsigned short rate,unsigned short sendTime ){
@@ -129,9 +154,6 @@
 	changeState(temp);
 	setupSound(rate);
 
-	memset(buffer,0,sizeof(buffer));
-	sprintf(buffer,"PARAMS %s|%d|%d", name, rate, sendTime);
-	send(remote_socket, buffer, strlen(buffer),0);
 
 	return SUCCESS;
    }
@@ -150,18 +172,45 @@
 	return SUCCESS;
    }
    int changeState(state_e newstate){
-	currentState = newState;
+	currentState = newstate;
 	return SUCCESS;
    }
    int sendRequest(){
+	int sent_, recv_, returnVal=0;
 	sprintf(buffer,"TALK %s", name);
-	send(remote_socket, buffer, strlen(buffer),0);
+	sent_ = send(remote_socket, buffer, strlen(buffer),0);
+        recv_ = recv(remote_socket, r_buffer, sizeof(r_buffer), 0);
+        returnVal = processRemote(r_buffer);
+
+	if(returnVal == ACCEPT){
+		memset(buffer,0,sizeof(buffer));
+		memset(r_buffer,0,sizeof(r_buffer));
+		sprintf(buffer,"PARAMS %s|%d|%d", name, sample_rate,chunk_time);
+		sent_ = send(remote_socket, buffer, strlen(buffer),0);
+        	recv_ = recv(remote_socket, r_buffer, sizeof(r_buffer), 0);
+        	returnVal = processRemote(r_buffer);
+		if(returnVal == ACCEPT){
+			showMessage(7);
+			return ACCEPT;
+		}
+		else{
+			showMessage(5);
+		}
+	}
+	else if(returnVal == DECLINE){
+		showMessage(2);
+		return DECLINE;
+	}
 	return SUCCESS;
    }
    int acceptRequest(){
+	int sent_, recv_, returnVal=0;
 	memset(buffer,0,sizeof(buffer));
+	memset(r_buffer,0,sizeof(buffer));
 	sprintf(buffer,"ACCEPT %s", name);
 	send(remote_socket, buffer, strlen(buffer),0);
+        recv_ = recv(remote_socket, r_buffer, sizeof(r_buffer), 0);
+        returnVal = processRemote(r_buffer);
 
 	state_e temp=TALK;
 	changeState(temp);
@@ -187,13 +236,19 @@
 		break;
 	case 4:printf("MUTE OFF\n");
 		break;
+	case 5:printf("Unable to setup call\n");
+		break;
+	case 6:printf("Unable to setup call\n");
+		break;
+	case 7:printf("Connected Successfully\n");
+		break;
 	}
 	return SUCCESS;
    }
    int stopRecording(){
 	memset(buffer,0,sizeof(buffer));
         sprintf(buffer,"MUTE_ON");
-	IS_MUTE=0;
+	_IS_MUTE=0;
 	return SUCCESS;
    } 
    int startRecording(){
@@ -226,10 +281,13 @@
    int busyWork(int pushTime){
 
 	fd_set ctrl_fds, listen_fds, input_fds;
-	struct timeval tv1, tv2;
+	struct timeval tv1, tv2, tv3;
 	int retval1, retval2, retval3;
 	int soundBytesReceived=0, soundBytesSent=0, controlBytesReceived=0;
-	int frames_read=0, frames_played=0;
+	unsigned int totalread=0, frames_read=0, frames_played=0;
+	unsigned int interval;
+        char in,*ptr, localbuffer[65]="";
+	state_e temp;
 
 	tv1.tv_sec=0;
 	tv1.tv_usec=500;
@@ -241,7 +299,7 @@
 	tv3.tv_usec=500;
 
         FD_ZERO(&input_fds);
-	FD_SET(stdin,&input_fds);
+	FD_SET(0,&input_fds);
 
         FD_ZERO(&ctrl_fds);
 	FD_SET(remote_socket, &ctrl_fds);
@@ -253,7 +311,7 @@
         if((pushTime==20)||
         	(pushTime==40)||
         		(pushTime==80)||
-        			(pushTime==100)||
+        			(pushTime==1000)||
         				(pushTime==200)||
         					(pushTime==500)){
 
@@ -291,21 +349,27 @@
 
 	   retval2 = select(remote_socket, &ctrl_fds,NULL, NULL, &tv2);
 	   if(retval2 != -1){
-            	 controlBytesReceived = recv(remote_socket, buffer, sizeof(playbuffer), 0);
+            	 controlBytesReceived = recv(remote_socket, buffer, sizeof(buffer), 0);
 	   	 processRemote(buffer);
 
 	   	 totalControlBytesReceived += controlBytesReceived; 
 	   }
 
-
+	   /* the user write something on the prompt lets read it*/
 	   retval3 = select(1, &input_fds,NULL, NULL, &tv3);
 	   if(retval3 != -1){
-	         userCommandFactory();
+		memset(localbuffer, 0, sizeof(localbuffer));
+		ptr = localbuffer;
+     		while((in = getchar())!='\n'){
+			*ptr++ = in;
+     		}
+     		*ptr='\0';
+	        userCommandFactory(localbuffer, currentState);
 	   }
 
 
            FD_ZERO(&input_fds);
-	   FD_SET(stdin,&input_fds);
+	   FD_SET(0,&input_fds);
 
            FD_ZERO(&ctrl_fds);
 	   FD_SET(remote_socket, &ctrl_fds);
@@ -337,7 +401,7 @@
 	return -1;
     }	  
 
-    receivedByte = recv(remote_socket, command, sizeof(buffer), 0);
+    //receivedByte = recv(remote_socket, command, sizeof(buffer), 0);
 
     if( !strncmp(command,"PARAM_ACK",9)||
     		!strncmp(command,"PARAMS",6)||
@@ -345,7 +409,8 @@
     				!strncmp(command,"STOP_ACK",8)||
     					!strncmp(command,"CALL",4)||
     						!strncmp(command,"CALL_ACK",8)||
-    							!strncmp(command,"DECLINE",7)){
+    							!strncmp(command,"ACCEPT",6)||
+    								!strncmp(command,"DECLINE",7)){
 
 	if(!strncmp(command,"CALL",4)){
 		showMessage(1);
@@ -354,10 +419,18 @@
 	}
 	if(!strncmp(command,"DECLINE",7)){
 		showMessage(2);
+		return DECLINE;
+	}
+	if(!strncmp(command,"ACCEPT",6)){
+		return ACCEPT;
 	}
 	else if (!strncmp(command,"PARAMS",6)){
-		parseParams(command, &rate, &sendTime);
-		getParamsAck(rate, sendTime);
+		parseParams(command);
+		return ACCEPT;
+	}
+	if(!strncmp(command,"PARAMS_ACK",10)){
+	//	showMessage(1);
+		return ACCEPT;
 	}
 	else if (!strncmp(command,"STOP",4)){
 		endCallAck();
@@ -390,12 +463,20 @@
       strtok(NULL, "|");
       if(temp!=NULL){
          strncpy(temp, buff, 16);
-	 rate = atoi(buff);	 
+	 rate = atoi(buff);	
+
+	 if(rate == 8000 || rate ==16000){
+	    sample_rate = rate; 
+	 } 
       }
       strtok(NULL, "|");
       if(temp!=NULL){
          strncpy(temp, buff, 16);
-	 time = atoi(buff);	 
+	 time = atoi(buff);	
+
+	 if(time ==20|| time== 40|| time == 80||time== 200){
+	      chunk_time=time;
+	 } 
       }
 
       return SUCCESS;

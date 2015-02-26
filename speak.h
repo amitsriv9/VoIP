@@ -1,5 +1,5 @@
-#ifndef __SPEAK__
-#define __SPEAK__
+#ifndef __SPEAKSS__
+#define __SPEAKSS__
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,43 +12,45 @@
 #include <unistd.h>
 #include <alsa/asoundlib.h>
 #include <fcntl.h>
-#include<netinet/in.h>
+#include <netinet/in.h>
 
 
 
    #define SUCCESS 0
-   int _PLAYBACK = 0;
-   int _RECORD = 0;
-   int _IS_MUTE = 0;
+   #define ACCEPT 15
+   #define DECLINE 18
+   extern int _PLAYBACK ;
+   extern int _RECORD ;
+   extern int _IS_MUTE ;
 
    typedef enum state {INIT, LOGIN, TALK} state_e;
 
-   socklen_t addrlen;
-   int mysocket, remote_socket;
-   int myaudio_socket, remoteaudio_socket;
-   struct sockaddr_in control_server, call_server, control_client, call_client;
+   extern socklen_t addrlen;
+   extern int mysocket, remote_socket;
+   extern int myaudio_socket, remoteaudio_socket;
+   extern struct sockaddr_in control_server, call_server, control_client, call_client;
 
-   snd_pcm_t 		*record=NULL, *playback=NULL;
-   snd_pcm_uframes_t 	frame_count;
-   snd_pcm_uframes_t 	frames_written;
-   unsigned int 	channels=1, sample_rate=8000; 
-   unsigned int		resample=1, latency=500000;
+   extern snd_pcm_t 		*record, *playback;
+   extern snd_pcm_uframes_t 	frame_count;
+   extern snd_pcm_uframes_t 	frames_written;
+   extern unsigned int 	channels, sample_rate; 
+   extern unsigned int		resample, latency;
 
    int 			totalSoundBytesReceived, totalSoundBytesSent, totalControlBytesReceived ;
-   char 		*soundbuffer=NULL, *playbuffer=NULL, buffer[256]="";
+   char 		*soundbuffer, *playbuffer, buffer[256], r_buffer[256];
 
-   char 		name[64]="", remote_name[64]="";
+   char 		name[64], remote_name[64];
   
-   int			paramFlag=1;
+   int			paramFlag;
 
  
    unsigned short chunk_time;
-   state_e currentState = INIT;
+   state_e currentState ;
 
 
    int userCommandFactory(char *command, state_e currentState);
    int setupSound(int sampleRate);
-   int initCall();
+   int initSetup();
    int logIn();
    int setParams(unsigned short rate,unsigned short sendTime );
    int parseParams(char* command );
