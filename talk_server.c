@@ -7,11 +7,11 @@
 #include <string.h>
 #include "speak2.h"
 
-
+   int framecount;
+   int losspercent ;
    int mysocket, remote_socket, myport, audioport,audio_socket, remoteaudio_socket;
    int main(int argc , char **argv){
 
-   int losspercent = 0;
    struct sockaddr_in server, client, talk;
    char buffer[512]="", param_buffer[512]="", *temp=NULL;
 
@@ -106,10 +106,8 @@
 	 printf("error detected\n");
 	 exit(1);
 	}
-    //setAll(&samplingrate);     
-    //busyWork(&chunksize, param_buffer);
     
-    recvAudio(samplingrate, losspercent, remoteaudio_socket);
+    recvAudio(remoteaudio_socket);
 
     }
 

@@ -21,7 +21,7 @@
  extern unsigned int    totalSoundBytesSent, soundBytesSent;
  extern unsigned int    totalSoundBytesReceived, soundBytesReceived;
  extern unsigned int    totalControlBytesReceived, controlBytesReceived;
-
+ extern int 		framecount;
 
    int sendAudio(int remote_socket){
 
@@ -31,11 +31,13 @@
          snd_pcm_set_params(record, SND_PCM_FORMAT_U8, SND_PCM_ACCESS_RW_INTERLEAVED,
            channels, sample_rate, resample, latency);
 
+	soundbuffer = (char*)malloc(framecount*sizeof(char));
+
          while(1){
-           frames_read = snd_pcm_readi(record, soundbuffer, interval);
+           frames_read = snd_pcm_readi(record, soundbuffer, framecount);
            soundBytesSent = send(remote_socket, soundbuffer, frames_read, 0);
            totalSoundBytesSent += soundBytesSent;
 	 }
-
+    free(soundbuffer);
     return SUCCESS;
    }

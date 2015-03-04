@@ -6,9 +6,6 @@ talk_server: talk_server.o newLibrary.o errorrate.o recvAudio.o
 talk_client: talk_client.o newLibrary.o errorrate.o sendAudio.o 
 	gcc -g -Wall -lm -lasound talk_client.o newLibrary.o errorrate.o sendAudio.o -o talk_client 
 
-talk_server.o:
-	gcc -g -Wall -c talk_server.c
-
 newLibrary.o:
 	gcc -g -Wall -c newLibrary.c
  
@@ -21,7 +18,10 @@ recvAudio.o:
 sendAudio.o:
 	gcc -g -Wall -c sendAudio.c
 
-talk_client.c:
+talk_server.o:
+	gcc -g -Wall -c talk_server.c
+
+talk_client.o:
 	gcc -g -Wall -c talk_client.c
 
 clean:

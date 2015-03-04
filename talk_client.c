@@ -9,6 +9,8 @@
 
 
     int mysocket, remote_socket , myport, audio_socket, remoteaudio_socket, audio_port, losspercent;
+  
+    int framecount;
     int main(int argc , char **argv){
 
     unsigned int recv_no, sent_no;
@@ -99,8 +101,6 @@
 	    exit(1);
     }
 
-    //setAll(&samplingrate);
-    //busyWork(&chunksize, param_buffer);
 
     sendAudio(audio_socket );
     close(mysocket);
