@@ -72,13 +72,11 @@
        recv(remote_socket, buffer, sizeof(buffer),0);
        if(!strncmp(buffer, "PARAMS", 6))
        {
-	   printf("%s\n", buffer);
 	   temp  = strtok(buffer+6,",");
 	   if(temp!=NULL){
 
 		memset(param_buffer,0,sizeof(param_buffer));
 		strncpy(param_buffer,temp,sizeof(param_buffer));
-	        printf("%s\n", param_buffer);
 		samplingrate = atoi(param_buffer);		/*  the bitrate  8000/16000 */
 	        temp  = strtok(NULL,",");
 
@@ -90,17 +88,32 @@
 
 		}
   	   }
- 	printf("Params received %d %d\n", samplingrate,chunksize);
+
+ 	printf("Params received %d %d\n", samplingrate, chunksize);
+	setSampleSize(losspercent, chunksize);
+
+        sprintf(buffer,"PARAMS_ACK AP%d",audioport);
+        send(remote_socket, buffer, strlen(buffer),0);   
        }
-       sprintf(buffer,"PARAMS_ACK AP%d",audioport);
-       send(remote_socket, buffer, strlen(buffer),0);   
+
        listen(audio_socket, 5);
+
        remoteaudio_socket = accept(audio_socket, (struct sockaddr*)&client, &addrlen);
 
-    setAll(&samplingrate);     
-    busyWork(&chunksize, param_buffer);
+      if(remoteaudio_socket > 0)
+         printf("listening\n");
+      else{ 
+	 printf("error detected\n");
+	 exit(1);
+	}
+    //setAll(&samplingrate);     
+    //busyWork(&chunksize, param_buffer);
+    
+    recvAudio(samplingrate, losspercent, remoteaudio_socket);
 
     }
+
+
     close(mysocket);
     return 0;
    }

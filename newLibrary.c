@@ -127,7 +127,7 @@
  ******************************/
 
     int busyWork(int *chunksize, char *control_buffer){
-
+        
 	fd_set ctrl_fds, listen_fds, input_fds;
 	struct timeval tv1, tv2, tv3;
 	int retval1, retval2, retval3;
@@ -139,6 +139,8 @@
 
         if(chunksize!=NULL)
 	   pushwindow = *chunksize;
+
+        printf("Inside busyWork\n");
 
         //record
         if((pushwindow==20)||
@@ -182,7 +184,6 @@
 
            	frames_read = snd_pcm_readi(record, soundbuffer + totalread, interval);
 	   	soundBytesSent = send(remote_socket, soundbuffer + totalread, frames_read, 0);
-
 	   	totalSoundBytesSent += soundBytesSent;
 
 
@@ -191,16 +192,15 @@
 	   	if(retval1 > 0 ){
 	         	soundBytesReceived = recv(remoteaudio_socket, playbuffer, sizeof(playbuffer), 0);
            	 	frames_played += snd_pcm_writei(playback, playbuffer, frame_count);
-
 	         	totalSoundBytesReceived += soundBytesReceived;
 	   	}
 
 
 	   	retval2 = select(remote_socket+1, &ctrl_fds,NULL, NULL, &tv2);
 
-	   	if(retval2 > 0){
+	   	/* the remote user wrote something probably closing the call , sned the ack back*/
+	   	if(retval2 > 0 ){
             	 	controlBytesReceived = recv(remote_socket, control_buffer, sizeof(control_buffer), 0);
-	   	 	//processRemote(buffer);
 			if(!strncmp(control_buffer, "STOP",4)){
 			    memset(control_buffer, 0, 512);
 			    sprintf(control_buffer, "STOP_ACK");
@@ -211,8 +211,8 @@
 	   	 	totalControlBytesReceived += controlBytesReceived; 
 	   	}
 
-	   	/* the user write something on the prompt lets read it*/
-	   	/*retval3 = select(1, &input_fds,NULL, NULL, &tv3);
+	   	/* the user wrote something on the prompt lets read it*/
+	   	retval3 = select(1, &input_fds,NULL, NULL, &tv3);
 
 	   	if(retval3 != -1){
 			memset(localbuffer, 0, sizeof(localbuffer));
@@ -221,10 +221,16 @@
 				*ptr++ = in;
      			}
      		*ptr='\0';
-	        userCommandFactory(localbuffer, currentState);
-	   	}	
-		*/
 
+		if(!strncmp(localbuffer, "STOP",4)){
+		    memset(control_buffer, 0, 512);
+		    sprintf(control_buffer, "STOP");
+		    send(remote_socket, control_buffer, strlen(control_buffer),0);
+		    break;
+	   	}
+		}	
+	snd_pcm_close(record);
+	snd_pcm_close(playback);
 	}  // end of while
 	return SUCCESS;
    }
